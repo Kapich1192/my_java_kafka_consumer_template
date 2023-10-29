@@ -1,0 +1,1 @@
+# my_java_kafka_consumer_template
