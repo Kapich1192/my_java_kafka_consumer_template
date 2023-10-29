@@ -1,0 +1,18 @@
+# Использованные Аннотации
+
+1. [Lombok]()
+   * [@NoArgsConstructor]()
+   * [@AllArgsConstructor]()
+   * [@Data]()
+   * [@Value]()
+   * [@Slf4j]()
+2. [Spring]() 
+   * [@Configuration]()
+   * [@Component]()
+   * [@Service]()
+   * [@KafkaListener(topics = orderTopic)]()
+3. [Hibernate]()
+   * [@Autowired]()
+   * [@Entity]()
+   * [@Id]()
+   * [@GeneratedValue(strategy = GenerationType.IDENTITY)]()
