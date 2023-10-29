@@ -6,8 +6,7 @@
     * [Templates](#шаблон)
 2. [Архитектура](#архитектура)
 3. [Запуск в Docker](#запуск-в-docker)
-4. [Kafdrop](#kafdrop)
-5. [Consumer](#consumer)
+4. [Consumer](#consumer)
 
 ## Определения
 ### Kafka
@@ -110,6 +109,145 @@ services:
     depends_on:
       - "kafka"
 ```
-## Kafdrop
 
 ## Consumer
+
+![Consumer ar](img/5_consumer_ar.png)
+
+Этапы создания Consumer-микросервиса:
+
+* конфигурируем group-id и бины;
+* настраиваем доступ к базе данных;
+* создаем Consumer и OrderService;
+* создаем репозиторий OrderRepository.
+
+Конфигурации Consumer-микросервиса и  базы данных.
+
+```yaml
+server:
+  port: 8081
+
+topic:
+  name: t.food.order
+
+spring:
+  kafka:
+    consumer:
+      group-id: "default"
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  datasource:
+    url: jdbc:h2:mem:testdb
+    username: sa
+    password: password
+```
+Config отвечает за настройку бина ModelMapper — библиотеки для маппинга
+одних объектов на другие. Например, для DTO, используемого далее.
+
+```java
+@Configuration
+public class Config {
+
+    @Bean
+    public ModelMapper modelMapper() {
+        return new ModelMapper();
+    }
+
+}
+```
+
+Классы модели:
+
+```java
+@Data
+@Value
+public class OrderDto {
+    String item;
+    Double amount;
+}
+```
+
+```java
+@Data
+@Entity
+@NoArgsConstructor
+@AllArgsConstructor
+public class Order {
+
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    private String item;
+    private Double amount;
+}
+```
+
+Consumer отвечает за прослушивание топика с ордерами и получение сообщений. 
+Полученные сообщения мы преобразуем в OrderDto, не содержащего ничего,
+связанного с персистентностью, например, ID.
+
+```java
+@Slf4j
+@Component
+public class Consumer {
+
+    private static final String orderTopic = "${topic.name}";
+
+    private final ObjectMapper objectMapper;
+    private final OrderService orderService;
+
+    @Autowired
+    public Consumer(ObjectMapper objectMapper, OrderService orderService) {
+        this.objectMapper = objectMapper;
+        this.orderService = orderService;
+    }
+
+    @KafkaListener(topics = orderTopic)
+    public void consumeMessage(String message) throws JsonProcessingException {
+        log.info("message consumed {}", message);
+
+        OrderDto orderDto = objectMapper.readValue(message, OrderDto.class);
+        orderService.persistOrder(orderDto);
+    }
+
+}
+```
+
+OrderService — преобразование полученного DTO в объект Order и сохранение его в БД.
+
+```java
+@Slf4j
+@Service
+public class OrderService {
+
+    private final OrderRepository orderRepository;
+    private final ModelMapper modelMapper;
+
+    @Autowired
+    public OrderService(OrderRepository orderRepository, ModelMapper modelMapper) {
+        this.orderRepository = orderRepository;
+        this.modelMapper = modelMapper;
+    }
+
+    public void persistOrder(OrderDto orderDto) {
+        Order order = modelMapper.map(orderDto, Order.class);
+        Order persistedOrder = orderRepository.save(order);
+
+        log.info("order persisted {}", persistedOrder);
+    }
+
+}
+```
+
+Код OrderRepository:
+
+```java
+@Repository
+public interface OrderRepository extends JpaRepository<Order, Long> {
+}
+```
+---
+
+Дополнительные файлы и инфа содержаться в папке materials в корне проекта
